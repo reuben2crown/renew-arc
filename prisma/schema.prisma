@@ -1,0 +1,108 @@
+// Prisma schema for RenewPilot - License Renewal Tracker
+// This schema implements strict Row Level Security (RLS) patterns
+// All tables are designed for multi-tenant isolation by user_id
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// User profile with authentication and notification preferences
+model User {
+  id             String    @id @default(uuid())
+  email          String    @unique
+  phone          String?
+  timezone       String    @default("America/Los_Angeles")
+  optInSms       Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  
+  licenses       License[]
+  ceCredits      CeCredit[]
+  reminders      Reminder[]
+  
+  @@index([email])
+}
+
+/// Professional license information with state-specific requirements
+model License {
+  id                   String    @id @default(uuid())
+  userId               String
+  profession           String    // e.g., "LCSW", "LMFT", "LPCC"
+  state                String    // CA, TX, NY, FL, IL
+  licenseNumber        String
+  expiryDate           DateTime
+  status               String    @default("active") // active, expired, pending
+  requiredHoursTotal   Int       @default(0)
+  requiredHoursEthics  Int       @default(0)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ceCredits            CeCredit[]
+  reminders            Reminder[]
+  
+  @@unique([userId, state, licenseNumber])
+  @@index([userId])
+  @@index([expiryDate])
+  @@index([state])
+}
+
+/// Continuing Education credits logged via OCR or manual entry
+model CeCredit {
+  id              String    @id @default(uuid())
+  userId          String
+  licenseId       String?
+  providerName    String
+  courseTitle     String
+  hours           Float
+  category        String?   // ethics, core, elective
+  completionDate  DateTime
+  ocrConfidence   Float?    // 0-1 confidence score from OCR
+  imageUrl        String?
+  verified        Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  license         License?  @relation(fields: [licenseId], references: [id], onDelete: SetNull)
+  
+  @@index([userId])
+  @@index([licenseId])
+  @@index([completionDate])
+}
+
+/// Automated reminder schedule and delivery tracking
+model Reminder {
+  id           String    @id @default(uuid())
+  userId       String
+  licenseId    String?
+  triggerDays  Int       // 90, 60, 30, 7 days before expiry
+  channel      String    // email, sms
+  status       String    @default("pending") // pending, sent, failed
+  sentAt       DateTime?
+  errorMessage String?
+  createdAt    DateTime  @default(now())
+  
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  license      License?  @relation(fields: [licenseId], references: [id], onDelete: SetNull)
+  
+  @@unique([userId, licenseId, triggerDays, channel])
+  @@index([userId])
+  @@index([status])
+  @@index([sentAt])
+}
+
+/// State-specific licensing rules (static reference data)
+model StateRule {
+  id           String   @id @default(uuid())
+  state        String   @unique // CA, TX, NY, FL, IL
+  profession   Json     // { "LCSW": {...}, "LMFT": {...} }
+  lastUpdated  DateTime @default(now())
+  
+  @@index([state])
+}
