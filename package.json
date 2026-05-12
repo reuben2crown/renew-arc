@@ -22,7 +22,10 @@
     "react-dom": "^18.2.0",
     "googleapis": "^131.0.0",
     "resend": "^3.2.0",
-    "twilio": "^4.23.0"
+    "twilio": "^4.23.0",
+    "pdf-lib": "^1.17.1",
+    "posthog-js": "^1.105.0",
+    "@sentry/nextjs": "^7.93.0"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
